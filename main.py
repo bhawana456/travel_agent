@@ -1,0 +1,141 @@
+import asyncio
+from langchain_core.messages import HumanMessage, SystemMessage, AIMessage, BaseMessage, ToolMessage
+from langgraph.graph import StateGraph,END,add_messages
+from pydantic import BaseModel,Field
+from datetime import datetime
+from langchain.agents import create_agent
+from typing import TypedDict, Annotated, Literal, List, Optional
+from tools import currency_information_tool, flight_information_tool
+from prompt import PROXEY_AGENT_PROMPT, NOMAD_AGENT_PROMPT
+from langgraph.checkpoint.memory import InMemorySaver
+from uitlity import build_structured_prompt
+from langchain_groq import ChatGroq
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+groq_key = os.getenv('GROQ_API_KEY')
+llm= ChatGroq(api_key=groq_key, model="llama-3.3-70b-versatile",temperature=0.5)
+
+memory= InMemorySaver()
+
+#................
+#define state
+#................
+class travel_state(TypedDict):
+     messages: Annotated[List[BaseMessage], add_messages]
+     name: Optional[str]
+     destination: Optional[str]
+     current_location: Optional[str]
+     languages: Optional[List[str]]
+     currency: Optional[str]
+     trip_date: Optional[str]
+     itinerary: Optional[str]
+
+#................
+#proxey agent
+#................
+class TourRequestData(BaseModel):
+    
+    name: Optional[str] = Field(None, description="The traveler's name")
+    destination: Optional[str] = Field(None,description="The trip destination")
+    current_location : Optional[str]=Field(None,description="user's trip destination")
+    languages: Optional[List[str]] = Field(None, description="List of languages of the traveler")
+    currency: Optional[str] = Field (None, description='The currency of traveler')
+    trip_date: Optional[str] = Field(None, description='The trip date')
+    
+
+
+async def proxey_node(state: travel_state)-> travel_state:
+
+    query=state['messages'][-1].content
+    message=[
+        SystemMessage(content= PROXEY_AGENT_PROMPT),
+        HumanMessage(content=query)
+    ] 
+
+    response= await llm.with_structured_output(TourRequestData).ainvoke(message)
+    
+    state['name']=response.name
+    state['destination']=response.destination
+    state['current_location']=response.current_location 
+    state['languages']=response.languages
+    state['currency']=response.currency
+    state['trip_date']=response.trip_date if response.trip_date is not None else datetime.now().strftime("%Y-%m-%d")
+
+    return state
+
+guide_agent=create_agent(
+    model=llm,
+    tools=[
+        currency_information_tool,
+        flight_information_tool,
+        #hotel_information_tool
+    ],
+    system_prompt="""You are a comprehensive travel guide agent.
+Your responsibilities:
+- Produce accurate, well-structured travel guides
+- Decide when to call tools for factual accuracy
+- Never expose raw tool output
+- Never mention tools explicitly
+- Follow the provided structure strictly
+""",
+    name="Comprehensive Travel Guide Agent"
+)
+
+async def travel_guide_node(state: travel_state) -> travel_state:
+
+    # Unpack the dictionary to pass arguments correctly
+    prompt = build_structured_prompt(
+        destination=state["destination"],
+        languages=state["languages"],
+        currency=state["currency"]
+    )
+
+    response = await guide_agent.ainvoke(
+        {
+            "messages": [HumanMessage(content=prompt)]
+        }
+    )
+    #print(response)
+    state["messages"] = response["messages"][-1].content
+
+    return state
+
+graph=StateGraph(travel_state)
+
+graph.add_node('proxey', proxey_node)
+graph.add_node('travel_guide', travel_guide_node)
+
+graph.set_entry_point('proxey')
+graph.add_edge('proxey', 'travel_guide')
+graph.add_edge('travel_guide', END)
+
+workflow=graph.compile(checkpointer=memory)
+
+async def main():
+    
+    print("** Enter your travel details to get comprehensive travel guide**")
+    while True:
+        user_input = input("You: ")
+
+        if user_input.lower() in ["exit", "quit"]:
+            print("Nomad: Goodbye! Thanks for chatting.")
+            break
+
+        # Invoke the nomad_agent with the user's input
+        response = await workflow.ainvoke(
+            {"messages": [HumanMessage(content=user_input)]},
+            config={
+                "configurable": {
+                    "thread_id": "1"
+                }
+            }
+        )
+
+        result=response['messages'][-1]
+
+        print(f"Nomad: {result.content}")
+
+if __name__ == "__main__":
+    asyncio.run(main())
