@@ -125,6 +125,34 @@ async def travel_guide_node(state: travel_state) -> travel_state:
 
     return state
 
+#................
+#router function
+#................
+def should_continue(state: travel_state) -> Literal["continue_conversation", "generate_guide"]:
+    """
+    Determines if we have all required information to generate the travel guide.
+    If any required field is missing, continue the conversation.
+    Otherwise, proceed to generate the guide.
+    """
+    required_fields = {
+        'destination': state.get('destination'),
+        'languages': state.get('languages'),
+        'currency': state.get('currency'),
+        'current_location': state.get('current_location'),
+        'trip_date': state.get('trip_date')
+    }
+
+    # Check if all required fields have values (not None and not empty)
+    all_present = all(
+        value is not None and value != "" and value != []
+        for value in required_fields.values()
+    )
+
+    if all_present:
+        return "generate_guide"
+    else:
+        return "continue_conversation"
+
 graph=StateGraph(travel_state)
 
 graph.add_node('nomad', conversation_node)
@@ -132,13 +160,27 @@ graph.add_node('proxey', proxey_node)
 graph.add_node('travel_guide', travel_guide_node)
 
 graph.set_entry_point('nomad')
+
+# Always extract information after conversation
 graph.add_edge('nomad', 'proxey')
-graph.add_edge('proxey', 'travel_guide')
+
+# Add conditional routing after information extraction
+graph.add_conditional_edges(
+    'proxey',
+    should_continue,
+    {
+        "continue_conversation": END,  # Return to user for more input
+        "generate_guide": 'travel_guide'     # Proceed to generate guide
+    }
+)
+
 graph.add_edge('travel_guide', END)
 
 workflow=graph.compile(checkpointer=memory)
 
 async def main():
+    print("** Welcome! I'm Nomad, your travel assistant. Let's plan your trip! **\n")
+
     while True:
         user_input = input("You: ")
 
@@ -146,7 +188,7 @@ async def main():
             print("Nomad: Goodbye! Thanks for chatting.")
             break
 
-        # Invoke the nomad_agent with the user's input
+        # Invoke the workflow with the user's input
         response = await workflow.ainvoke(
             {"messages": [HumanMessage(content=user_input)]},
             config={
@@ -154,11 +196,20 @@ async def main():
                     "thread_id": "1"
                 }
             }
-        ) 
+        )
 
-        result=response['messages'][-1]
-
-        print(f"Nomad: {result.content}")
+        # Check if travel guide was generated (all info collected)
+        if response.get('itinerary'):
+            print("\n" + "="*50)
+            print("TRAVEL GUIDE GENERATED!")
+            print("="*50)
+            print(response['itinerary'])
+            print("\n" + "="*50)
+            break  # End conversation after guide is generated
+        else:
+            # Continue conversation - show nomad's response
+            result = response['messages'][-1]
+            print(f"Nomad: {result.content}")
 
 if __name__ == "__main__":
     asyncio.run(main())
