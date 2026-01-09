@@ -5,13 +5,17 @@ from pydantic import BaseModel,Field
 from datetime import datetime
 from langchain.agents import create_agent
 from typing import TypedDict, Annotated, Literal, List, Optional
-from tools import currency_information_tool, flight_information_tool
+from tools import currency_information_tool, flight_information_tool, hotel_information_tool
 from prompt import PROXEY_AGENT_PROMPT, NOMAD_AGENT_PROMPT
 from langgraph.checkpoint.memory import InMemorySaver
 from uitlity import build_structured_prompt
 from langchain_groq import ChatGroq
 from dotenv import load_dotenv
 import os
+from reportlab.platypus import SimpleDocTemplate, Paragraph
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.pagesizes import A4
+from pathlib import Path
 
 load_dotenv()
 groq_key = os.getenv('GROQ_API_KEY')
@@ -31,6 +35,7 @@ class travel_state(TypedDict):
      currency: Optional[str]
      trip_date: Optional[str]
      itinerary: Optional[str]
+     pdf_path: Optional[str]
 
 #.....................
 #information collector node
@@ -93,7 +98,7 @@ guide_agent=create_agent(
     tools=[
         currency_information_tool,
         flight_information_tool,
-        #hotel_information_tool
+        hotel_information_tool
     ],
     system_prompt="""You are a comprehensive travel guide agent.
 Your responsibilities:
@@ -112,7 +117,9 @@ async def travel_guide_node(state: travel_state) -> travel_state:
     prompt = build_structured_prompt(
         destination=state["destination"],
         languages=state["languages"],
-        currency=state["currency"]
+        currency=state["currency"],
+        current_location=state['current_location'],
+        trip_date=state['trip_date']
     )
 
     response = await guide_agent.ainvoke(
@@ -153,11 +160,41 @@ def should_continue(state: travel_state) -> Literal["continue_conversation", "ge
     else:
         return "continue_conversation"
 
+#..................
+#pdf node function
+#..................
+
+async def pdf_generator(state : travel_state)->travel_state:
+    output_dir = Path("outputs")
+    output_dir.mkdir(exist_ok=True)
+
+    pdf_path = output_dir / "travel_guide.pdf"
+
+    styles = getSampleStyleSheet()
+    story = []
+
+    for line in state["itinerary"].split("\n"):
+        story.append(Paragraph(line, styles["Normal"]))
+
+    doc = SimpleDocTemplate(
+        str(pdf_path),
+        pagesize=A4,
+        rightMargin=40,
+        leftMargin=40,
+        topMargin=40,
+        bottomMargin=40,
+    )
+    doc.build(story)
+
+    state["pdf_path"] = str(pdf_path)
+
+    return state
 graph=StateGraph(travel_state)
 
 graph.add_node('nomad', conversation_node)
 graph.add_node('proxey', proxey_node)
 graph.add_node('travel_guide', travel_guide_node)
+graph.add_node('pdf_generator', pdf_generator)
 
 graph.set_entry_point('nomad')
 
@@ -174,7 +211,8 @@ graph.add_conditional_edges(
     }
 )
 
-graph.add_edge('travel_guide', END)
+graph.add_edge('travel_guide', 'pdf_generator')
+graph.add_edge('pdf_generator', END)
 
 workflow=graph.compile(checkpointer=memory)
 
@@ -199,7 +237,7 @@ async def main():
         )
 
         # Check if travel guide was generated (all info collected)
-        if response.get('itinerary'):
+        if response.get('pdf_path'):
             print("\n" + "="*50)
             print("TRAVEL GUIDE GENERATED!")
             print("="*50)

@@ -1,22 +1,24 @@
-def build_structured_prompt(destination, languages,currency):
+def build_structured_prompt(destination, languages,currency, current_location,trip_date):
 
     return f"""
 You are an expert travel research assistant.
 
 Generate a comprehensive travel guide for:
 Destination: {destination}
+Current Location: {current_location}
 Traveler languages: {languages}
 Traveler currency: {currency}
+Trip Date: {trip_date}
 
 You have access to tools for:
 - Currency conversion
 - Flight information
+- Hotel Information Tool
 
 Rules:
 - Use tools ONLY when factual or numerical accuracy is required
 - Do NOT mention tool names in the final output
 - Synthesize information into a clean, readable guide
-- Follow the exact structure below
 
 ====================
 
@@ -27,24 +29,31 @@ Rules:
 - Timezone
 
 2. 🗣️ Language & Communication
-- Local languages
-- Comparison with traveler languages
+- Official/Local languages of destination
+- Comparison with traveler languages 
 - Communication difficulty assessment
 - Helpful phrases or English usage
 
 3. 💰 Currency Information
-- Local currency
-- Conversion from traveler currency
-- Acceptance of traveler currency
+- Local currency of destination
+- Provide conversion rates between the traveler's currency and the destination currency
+- Mention if the traveler's currency is commonly accepted in tourist places
 
 4. 🎉 Fun Activities & Tourist Attractions
 - Up to 10 attractions or activities
+-Include a mix of landmarks, museums, natural attractions, cultural events, or nightlife
 
 5. 🍽️ Local Cuisine
 - Up to 5 dishes
 - At least one popular drink or snack
 
 6. 🏨 Accommodation Budget
-- Estimated nightly costs (budget, mid-range, luxury)
+- Use the hotel_accomodation_tool EXACTLY ONCE with the destination provided 
+- Provide hotel cost ,estimated nightly costs (budget, mid-range, luxury).
 - Converted into traveler currency
+
+7. ✈️ Flight Information
+- Provide flight costs and link from ONLY the specified current location to destination on provided date.
+- Use the flight_information_tool EXACTLY ONCE with the current_location provided 
+- Do NOT fetch flight information from any other cities
 """

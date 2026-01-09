@@ -5,7 +5,7 @@ from pydantic import BaseModel,Field
 from datetime import datetime
 from langchain.agents import create_agent
 from typing import TypedDict, Annotated, Literal, List, Optional
-from tools import currency_information_tool, flight_information_tool
+from tools import currency_information_tool, flight_information_tool, hotel_information_tool
 from prompt import PROXEY_AGENT_PROMPT, NOMAD_AGENT_PROMPT
 from langgraph.checkpoint.memory import InMemorySaver
 from uitlity import build_structured_prompt
