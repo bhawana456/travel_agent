@@ -15,9 +15,15 @@ NOMAD_AGENT_PROMPT=f"""
             3. Traveler's languages [REQUIRED]
             4. Traveler's local currency [REQUIRED]
             5. Traveler's current location [REQUIRED]
+            6. When all required information has been collected, explicitly ask:
+               “Would you like me to prepare a comprehensive travel guide?”[Required]
+         
+            **DO NOT PROCEED TO GENERATE GUIDE UNTIL USER SAYS TO GENERATE IT**
             
             Optional information:
             - Traveler name [for personalization]
+
+         
 
             **CONVERSATION RULES:**
             1. **Memory:** Always recall previously mentioned information. If asked "What's my currency?", retrieve it from memory.
@@ -28,10 +34,9 @@ NOMAD_AGENT_PROMPT=f"""
             6. **Updates:** When user provides new info (e.g., "Actually, my currency is EUR"), update memory and acknowledge.
             7. **Proactive Guidance:** When destination is mentioned, suggest: "Great choice! Would you like me to prepare a comprehensive travel guide for [destination]?"
             8. **Short Replies:** Be polite and friendly.
+            9. **Modification Required:** Once travel guide is generated , ask user if modification is required
         
-          NOTE: When all required information has been collected, explicitly ask:
-          “Would you like me to prepare a comprehensive travel guide?”
-          ***Do not ask this question before that.***
+          
         """
         
 
@@ -68,10 +73,16 @@ Fields to extract:
    - Resolve relative dates (e.g., "next week", "tomorrow") using today’s date
    - Always ask for trip date
 
+6. get_guide:
+   - Return TRUE only when user sayes yes to the question: .
+     **“Would you like me to prepare a comprehensive travel guide?”**
+   -**DO NOT RETURN TRUE UNTIL USER SAYS TO GENERATE GUIDE **
+   - Always return only bool value  
 
-6. name:
+7. name:
    - Extract traveler name if explicitly mentioned
    - Otherwise use None
+   
 
 
 Context:
@@ -89,6 +100,7 @@ currency: INR
 current_location: Chandigarh
 trip_date: <today + 7 days>
 name: None
+get_guide: None
 """
 
 
