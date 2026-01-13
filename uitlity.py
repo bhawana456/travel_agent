@@ -51,11 +51,11 @@ Rules:
 - Use the hotel_accomodation_tool EXACTLY ONCE with the destination provided 
 - Provide hotel cost ,estimated nightly costs (budget, mid-range, luxury).
 - Converted into traveler currency
-- ALWAYS use ISO 4217 currency codes while denoting budget.
+- ALWAYS use ISO 4217 currency codes while denoting budget,NEVER use currency symbol($,₹).
 
  ✈ Flight Information
 - Always specify the trip date 
-- ALWAYS use ISO 4217 currency codes for flight cost.
+- ALWAYS use ISO 4217 currency codes for flight cost, NEVER use currency symbol($,₹).
 - Use the flight_information_tool EXACTLY ONCE with the current_location provided  
 - Provide 2-3 flight names with approximate flight costs(e.g. IndiGo Airlines: INR 56,183 - INR 83,195 ) provide link from ONLY the specified current location to destination on provided date
 - Do NOT fetch flight information from any other cities

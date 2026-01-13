@@ -303,42 +303,24 @@ graph.add_edge('pdf_generator', END)
 
 workflow=graph.compile(checkpointer=memory)
 
-async def main():
+async def run_travel_agent(user_input: str, thread_id: str='1'):
+    '''
+    this function will be called by fast api    
+    '''
+    if user_input.lower() ==['exit', 'bye','quit']:
+        return 'Enjoy your trip.. Good bye!!!'
     
-    print("** Welcome! I'm Nomad, your travel assistant. Let's plan your trip! **\n")
-
-    while True:
-        user_input = input("You: ")
-
-        if user_input.lower() in ["exit", "quit"]:
-            print("Nomad: Goodbye! Thanks for chatting.")
-            break
-
-        # Invoke the workflow with the user's input
-        response = await workflow.ainvoke(
-            {"messages": [HumanMessage(content=user_input)]},
-            config={
-                "configurable": {
-                    "thread_id": "1"
-                }
+    response= await workflow.ainvoke(
+        {'messages':[HumanMessage(content=user_input)]}, 
+        config={
+            'configurable':{
+                'thread_id':thread_id
             }
-        )
+        }
+    )
+    return response
 
-        # Check if travel guide was generated (all info collected)
-        if response.get('pdf_path'):
-            print("\n" + "="*50)
-            print("TRAVEL GUIDE GENERATED!")
-            print("="*50)
-            print('PDF Created Successfully!!')
-            print("\n" + "="*50)
 
-        else:
-        # Continue conversation - show nomad's response
-            result = response['messages'][-1]
-            print(f"Nomad: {result.content}")
-
-if __name__ == "__main__":
-    asyncio.run(main())
 '''
 from IPython.display import Image, display
 
